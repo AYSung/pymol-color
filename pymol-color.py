@@ -11,8 +11,8 @@ def bin_moda(file_path):
         (high, very_high),
         (very_high, np.inf)
         ])
-    bin_names = ['medium', 'high', 'very_high']
-    bin_colors = ['yelloworange', 'tv_orange', 'firebrick']
+    names = ['medium', 'high', 'very_high']
+    colors = ['yelloworange', 'tv_orange', 'firebrick']
 
     data = pd.read_csv(
         file_path,
@@ -20,9 +20,9 @@ def bin_moda(file_path):
         index_col=['num'],
     )
 
-    binned_data = pd.cut(data['plainMODA'], bins).map(dict(zip(bins, bin_names)))
-    binned_residue_numbers = [get_residues(binned_data, bin_name) for bin_name in bin_names]
-    return zip(bin_names, binned_residue_numbers, bin_colors)
+    binned_data = pd.cut(data['plainMODA'], bins).map(dict(zip(bins, names)))
+    residue_numbers = [get_residues(binned_data, name) for name in names]
+    return zip(names, residue_numbers, colors)
 
 
 def bin_consurf(file_path):
@@ -83,7 +83,8 @@ BIN_FUNCTIONS = {
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog='PyMol color', description='Generate pymol script to color residues based on csv score tables from various bioinformatic servers (e.g. ConSurf, MODA)')
+        prog='PyMol color', 
+        description='Generate pymol coloring script based on csv score tables')
     parser.add_argument(
         'mode',
         metavar='mode',
