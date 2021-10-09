@@ -9,7 +9,7 @@ from abc import ABC, abstractclassmethod
 Groups = namedtuple('Groups', ['label', 'residues', 'color'])
 
 
-class PyMOL_Script_Maker(ABC):
+class PymolScriptMaker(ABC):
     labels, colors = None, None
 
     @abstractclassmethod
@@ -48,7 +48,7 @@ class PyMOL_Script_Maker(ABC):
             f.write(pymol_commands)
 
 
-class MODA(PyMOL_Script_Maker):
+class MODA(PymolScriptMaker):
     labels = ['low', 'medium', 'high', 'very_high']
     colors = ['gray80', 'yelloworange', 'tv_orange', 'firebrick']
 
@@ -69,7 +69,7 @@ class MODA(PyMOL_Script_Maker):
         return pd.cut(data['plainMODA'], bins).map(dict(zip(bins, cls.labels)))
 
 
-class ConSurf(PyMOL_Script_Maker):
+class ConSurf(PymolScriptMaker):
     labels = [str(i) for i in range(1, 10)]
     colors = ['teal', 'cyan', 'aquamarine', 'palecyan',
               'white', 'lightpink', 'pink', 'deepsalmon', 'raspberry']
