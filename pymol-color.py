@@ -12,10 +12,8 @@ Groups = namedtuple('Groups', ['label', 'residues', 'color'])
 class PyMOL_Script_Maker(ABC):
     labels, colors = None, None
 
-
     @abstractclassmethod
     def import_data(cls, file_path): pass
-
 
     @classmethod
     def bin_residues(cls, data):
@@ -23,10 +21,9 @@ class PyMOL_Script_Maker(ABC):
             filter = data.values == label
             residues = data[filter].index.astype(str).tolist()
             return '+'.join(residues)
-        
+
         residues = [get_residues(data, label) for label in cls.labels]
         return [Groups(*tup) for tup in zip(cls.labels, residues, cls.colors)]
-
 
     @classmethod
     def make_commands(cls, groupings):
@@ -41,7 +38,6 @@ class PyMOL_Script_Maker(ABC):
         pymol_commands += 'bg_color white\n'
         return pymol_commands
 
-
     @classmethod
     def make_script(cls, file_path):
         data = cls.import_data(file_path)
@@ -55,22 +51,22 @@ class PyMOL_Script_Maker(ABC):
 
 class MODA(PyMOL_Script_Maker):
     labels = ['low', 'medium', 'high', 'very_high']
-    colors = ['gray80','yelloworange', 'tv_orange', 'firebrick']
+    colors = ['gray80', 'yelloworange', 'tv_orange', 'firebrick']
 
     @classmethod
     def import_data(cls, file_path):
-        data =  pd.read_csv(
-            file_path, 
-            usecols=['num', 'plainMODA'], 
+        data = pd.read_csv(
+            file_path,
+            usecols=['num', 'plainMODA'],
             index_col=['num']
-            )
+        )
         medium, high, very_high = (50, 100, 1000)  # set bin thresholds
         bins = pd.IntervalIndex.from_tuples([
             (0, medium),
             (medium, high),
             (high, very_high),
             (very_high, np.inf)
-            ])
+        ])
         return pd.cut(data['plainMODA'], bins).map(dict(zip(bins, cls.labels)))
 
 
@@ -82,11 +78,11 @@ class ConSurf(PyMOL_Script_Maker):
     @classmethod
     def import_data(cls, file_path):
         data = pd.read_csv(
-                file_path,
-                skiprows=4,
-                usecols=['pos', 'ConSurf Grade'],
-                index_col=['pos'],
-            )
+            file_path,
+            skiprows=4,
+            usecols=['pos', 'ConSurf Grade'],
+            index_col=['pos'],
+        )
         data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
         return data
 
@@ -104,7 +100,7 @@ MODES = {
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog='PyMol color', 
+        prog='PyMol color',
         description='Generate pymol coloring script based on csv score tables')
     parser.add_argument(
         'mode',
@@ -112,13 +108,13 @@ if __name__ == '__main__':
         type=str,
         choices=MODES.keys(),
         help='type of analysis (e.g. moda, consurf)',
-        )
+    )
     parser.add_argument(
         'csv',
         metavar='csv',
         nargs='+',
         type=Path,
         help='csv file with residue scores',
-        )
+    )
     args = parser.parse_args()
     main(args)
