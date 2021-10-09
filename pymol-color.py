@@ -18,8 +18,7 @@ class PyMOL_Script_Maker(ABC):
     @classmethod
     def bin_residues(cls, data):
         def get_residues(data, label):
-            filter = data.values == label
-            residues = data[filter].index.astype(str).tolist()
+            residues = data[data.values == label].index.astype(str).tolist()
             return '+'.join(residues)
 
         residues = [get_residues(data, label) for label in cls.labels]
