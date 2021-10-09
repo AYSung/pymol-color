@@ -5,16 +5,20 @@ import numpy as np
 
 
 def make_into_pml_script(func):
+    """Wraps a function that imports data into a Pandas Series with the residue
+    number as the index and a corresponding categorical label and makes a PyMol
+    coloring script out of the labels, residues, and colors.
+    """
     def bin_residues(data, labels):
+        """Return list of residues in each category joined with '+'"""
         def get_residues(data, label):
             residues = data[data.values == label].index.astype(str).tolist()
             return '+'.join(residues)
         return [get_residues(data, label) for label in labels]
 
     def make_commands(groupings):
-        default_color = 'gray80'
-
-        commands = f'{default_color}\n'
+        """Generate string of pymol commands from tuple of labels, residues, and colors"""
+        commands = 'gray80\n'
         for label, residues, color in groupings:
             commands += f'select {label}, resi {residues}\n'
             commands += f'color {color}, {label}\n'
@@ -36,6 +40,7 @@ def make_into_pml_script(func):
 
 @make_into_pml_script
 def moda(file_path):
+    """Generates a pymol coloring script from a csv table of MODA scores"""
     labels = ['low', 'medium', 'high', 'very_high']
     colors = ['gray80', 'yelloworange', 'tv_orange', 'firebrick']
 
@@ -44,7 +49,7 @@ def moda(file_path):
         usecols=['num', 'plainMODA'],
         index_col=['num']
     )
-    medium, high, very_high = (50, 100, 1000)  # set bin thresholds
+    medium, high, very_high = (50, 100, 1000)
     bins = pd.IntervalIndex.from_tuples([
         (0, medium),
         (medium, high),
@@ -57,6 +62,7 @@ def moda(file_path):
 
 @make_into_pml_script
 def consurf(file_path):
+    """Generates a pymol coloring script from a csv table of ConSurf scores"""
     labels = [str(i) for i in range(1, 10)]
     colors = ['teal', 'cyan', 'aquamarine', 'palecyan',
               'white', 'lightpink', 'pink', 'deepsalmon', 'raspberry']
