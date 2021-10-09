@@ -4,39 +4,38 @@ import pandas as pd
 import numpy as np
 
 
-def import_moda(file_path):
-    return pd.read_csv(
+def bin_moda(file_path):
+    medium, high, very_high = (50, 100, 1000)  # set bin thresholds
+    bins = pd.IntervalIndex.from_tuples([
+        (medium, high),
+        (high, very_high),
+        (very_high, np.inf)
+        ])
+    bin_names = ['medium', 'high', 'very_high']
+    bin_colors = ['yelloworange', 'tv_orange', 'firebrick']
+
+    data = pd.read_csv(
         file_path,
         usecols=['num', 'plainMODA'],
         index_col=['num'],
     )
 
-def bin_moda(data):
-    medium, high, very_high = (50, 100, 1000)  # set bin thresholds
-    bins = pd.IntervalIndex.from_tuples(
-        [(medium, high), (high, very_high), (very_high, np.inf)])
-    bin_names = ['medium', 'high', 'very_high']
-    bin_colors = ['yelloworange', 'tv_orange', 'firebrick']
-
-    binned_data = pd.cut(data['plainMODA'], bins).map(
-        dict(zip(bins, bin_names)))
-    binned_residue_numbers = [get_residues(
-        binned_data, bin_name) for bin_name in bin_names]
+    binned_data = pd.cut(data['plainMODA'], bins).map(dict(zip(bins, bin_names)))
+    binned_residue_numbers = [get_residues(binned_data, bin_name) for bin_name in bin_names]
     return zip(bin_names, binned_residue_numbers, bin_colors)
 
-def import_consurf(file_path):
-    consurf_data = pd.read_csv(
+
+def bin_consurf(file_path):
+    scores = [str(i) for i in range(1, 10)]
+
+    data = pd.read_csv(
         file_path,
         skiprows=4,
         usecols=['pos', 'ConSurf Grade'],
         index_col=['pos'],
     )
-    consurf_data['ConSurf Grade'] = consurf_data['ConSurf Grade'].str.replace(
-        '*', '', regex=False)
-    return consurf_data
+    data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
 
-def bin_consurf(data):
-    scores = [str(i) for i in range(1, 10)]
     residue_numbers = [get_residues(data, score) for score in scores]
     colors = ['teal', 'cyan', 'aquamarine', 'palecyan',
               'white', 'lightpink', 'pink', 'deepsalmon', 'raspberry']
@@ -64,42 +63,40 @@ def generate_pymol_script(bins):
 
 
 def main(args):
-    import_data = IMPORT_FUNCTIONS[args.mode]
-    bin_data = BIN_FUNCTIONS[args.mode]
+    bin_function = BIN_FUNCTIONS[args.mode]
 
     for file_path in args.csv:
-        data = import_data(file_path)
-        bins = bin_data(data)
+        bins = bin_function(file_path)
         pymol_script = generate_pymol_script(bins)
 
-        export_path = file_path.with_name(f'{file_path.stem}-{args.mode}-coloring-script').with_suffix('.pml')
+        export_path = file_path.with_name(
+            f'{file_path.stem}-coloring-script').with_suffix('.pml')
         with open(export_path, 'w') as f:
             f.write(pymol_script)
 
 
-if __name__ == '__main__':
-    IMPORT_FUNCTIONS = {
-        'moda': import_moda,
-        'consurf': import_consurf,
-    }
-    BIN_FUNCTIONS = {
-        'moda': bin_moda,
-        'consurf': bin_consurf,
-    }
+BIN_FUNCTIONS = {
+    'moda': bin_moda,
+    'consurf': bin_consurf,
+}
 
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         prog='PyMol color', description='Generate pymol script to color residues based on csv score tables from various bioinformatic servers (e.g. ConSurf, MODA)')
-    parser.add_argument('mode',
-                        metavar='mode',
-                        type=str,
-                        choices=IMPORT_FUNCTIONS.keys(),
-                        help='type of analysis (e.g. moda, consurf)',
-                        )
-    parser.add_argument('csv',
-                        metavar='csv',
-                        nargs='+',
-                        type=Path,
-                        help='csv file with residue scores',
-                        )
+    parser.add_argument(
+        'mode',
+        metavar='mode',
+        type=str,
+        choices=BIN_FUNCTIONS.keys(),
+        help='type of analysis (e.g. moda, consurf)',
+        )
+    parser.add_argument(
+        'csv',
+        metavar='csv',
+        nargs='+',
+        type=Path,
+        help='csv file with residue scores',
+        )
     args = parser.parse_args()
     main(args)
