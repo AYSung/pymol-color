@@ -2,102 +2,84 @@ import argparse
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from collections import namedtuple
-from abc import ABC, abstractclassmethod
 
 
-Groups = namedtuple('Groups', ['label', 'residues', 'color'])
-
-
-class PymolScriptMaker(ABC):
-    labels, colors = None, None
-
-    @abstractclassmethod
-    def import_data(cls, file_path): pass
-
-    @classmethod
-    def bin_residues(cls, data):
+def make_into_pml_script(func):
+    def bin_residues(data, labels):
         def get_residues(data, label):
             residues = data[data.values == label].index.astype(str).tolist()
             return '+'.join(residues)
+        return [get_residues(data, label) for label in labels]
 
-        residues = [get_residues(data, label) for label in cls.labels]
-        return [Groups(*tup) for tup in zip(cls.labels, residues, cls.colors)]
-
-    @classmethod
-    def make_commands(cls, groupings):
+    def make_commands(groupings):
         default_color = 'gray80'
 
-        pymol_commands = f'{default_color}\n'
+        commands = f'{default_color}\n'
         for label, residues, color in groupings:
-            pymol_commands += f'select {label}, resi {residues}\n'
-            pymol_commands += f'color {color}, {label}\n'
-        pymol_commands += 'show surface\n'
-        pymol_commands += 'set transparency, 0.2\n'
-        pymol_commands += 'bg_color white\n'
-        return pymol_commands
-
-    @classmethod
-    def make_script(cls, file_path):
-        data = cls.import_data(file_path)
-        groupings = cls.bin_residues(data)
-        pymol_commands = cls.make_commands(groupings)
+            commands += f'select {label}, resi {residues}\n'
+            commands += f'color {color}, {label}\n'
+        commands += 'show surface\n'
+        commands += 'set transparency, 0.2\n'
+        commands += 'bg_color white\n'
+        return commands
+    
+    def wrapper(file_path):
+        data, labels, colors = func(file_path)
+        residues = bin_residues(data, labels)
+        pymol_commands = make_commands(zip(labels, residues, colors))
 
         script_path = file_path.with_name(f'{file_path.stem}-coloring-script.pml')
         with open(script_path, 'w') as f:
             f.write(pymol_commands)
+    return wrapper
 
 
-class MODA(PymolScriptMaker):
+@make_into_pml_script
+def moda(file_path):
     labels = ['low', 'medium', 'high', 'very_high']
     colors = ['gray80', 'yelloworange', 'tv_orange', 'firebrick']
 
-    @classmethod
-    def import_data(cls, file_path):
-        data = pd.read_csv(
-            file_path,
-            usecols=['num', 'plainMODA'],
-            index_col=['num']
-        )
-        medium, high, very_high = (50, 100, 1000)  # set bin thresholds
-        bins = pd.IntervalIndex.from_tuples([
-            (0, medium),
-            (medium, high),
-            (high, very_high),
-            (very_high, np.inf)
-        ])
-        return pd.cut(data['plainMODA'], bins).map(dict(zip(bins, cls.labels)))
+    data = pd.read_csv(
+        file_path,
+        usecols=['num', 'plainMODA'],
+        index_col=['num']
+    )
+    medium, high, very_high = (50, 100, 1000)  # set bin thresholds
+    bins = pd.IntervalIndex.from_tuples([
+        (0, medium),
+        (medium, high),
+        (high, very_high),
+        (very_high, np.inf)
+    ])
+    data = pd.cut(data['plainMODA'], bins).map(dict(zip(bins, labels)))
+    return data, labels, colors
 
 
-class ConSurf(PymolScriptMaker):
+@make_into_pml_script
+def consurf(file_path):
     labels = [str(i) for i in range(1, 10)]
     colors = ['teal', 'cyan', 'aquamarine', 'palecyan',
               'white', 'lightpink', 'pink', 'deepsalmon', 'raspberry']
 
-    @classmethod
-    def import_data(cls, file_path):
-        data = pd.read_csv(
-            file_path,
-            skiprows=4,
-            usecols=['pos', 'ConSurf Grade'],
-            index_col=['pos'],
-        )
-        data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
-        return data
+    data = pd.read_csv(
+        file_path,
+        skiprows=4,
+        usecols=['pos', 'ConSurf Grade'],
+        index_col=['pos'],
+    )
+    data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
+    return data, labels, colors
 
 
 def main(args):
-    mode = MODES[args.mode]
+    make_script = eval(args.mode)
     for file_path in args.csv:
-        mode.make_script(file_path)
+        make_script(file_path)
 
-
-MODES = {
-    'moda': MODA,
-    'consurf': ConSurf
-}
 
 if __name__ == '__main__':
+    MODES = ['moda','consurf',]
+
     parser = argparse.ArgumentParser(
         prog='PyMol color',
         description='Generate pymol coloring script based on csv score tables')
@@ -105,7 +87,7 @@ if __name__ == '__main__':
         'mode',
         metavar='mode',
         type=str,
-        choices=MODES.keys(),
+        choices=MODES,
         help='type of analysis (e.g. moda, consurf)',
     )
     parser.add_argument(
