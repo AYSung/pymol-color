@@ -18,7 +18,7 @@ def make_into_pml_script(func):
 
     def make_commands(groupings):
         """Generate string of pymol commands from tuple of labels, residues, and colors"""
-        commands = 'gray80\n'
+        commands = 'color gray80\n'
         for label, residues, color in groupings:
             commands += f'select {label}, resi {residues}\n'
             commands += f'color {color}, {label}\n'
@@ -76,6 +76,19 @@ def consurf(file_path):
     data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
     return data, labels, colors
 
+@make_into_pml_script
+def custom(file_path):
+    """Generates a pymol coloring script from a csv table of custom annotations and colors"""
+    data = pd.read_csv(
+        file_path,
+        usecols=['residue', 'label', 'color'],
+        index_col=['residue']
+    )
+    
+    labels = data.drop_duplicates()['label'].tolist()
+    colors = data.drop_duplicates()['color'].tolist()
+
+    return data, labels, colors
 
 def main(args):
     make_script = eval(args.mode)
@@ -84,7 +97,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    MODES = ['moda','consurf',]
+    MODES = ['moda','consurf','custom']
 
     parser = argparse.ArgumentParser(
         prog='PyMol color',
