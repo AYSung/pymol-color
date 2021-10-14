@@ -15,8 +15,7 @@ def import_moda(path):
     return (pd.read_csv(path, **file_format)
             .rename(columns={'num': 'residue', 'plainMODA': 'label'})
             .assign(label=lambda x: pd.cut(x.label, bins=bins, labels=labels, include_lowest=True),
-                    color=lambda x: x.label.map(dict(zip(labels, colors))))
-            )
+                    color=lambda x: x.label.map(dict(zip(labels, colors)))))
 
 def import_consurf(path):
     """Generates a pymol coloring script from a csv table of ConSurf scores"""
@@ -29,14 +28,49 @@ def import_consurf(path):
     return (pd.read_csv(path, **file_format)
             .rename(columns={'pos':'residue', 'ConSurf Grade': 'label'})
             .assign(label=lambda x: x.label.str.replace('*', '', regex=False),
-                    color=lambda x: x.label.map(dict(zip(labels, colors))))
-            )
+                    color=lambda x: x.label.map(dict(zip(labels, colors)))))
+
+def import_gnomad(path):
+    '''Generates a pymol coloring script from a gnomAD variant table'''
+    file_format = {'usecols': ['Protein Consequence', 'VEP Annotation', 'ClinVar Clinical Significance']}
+
+    labels = ['pathogenic', 'likely_pathogenic', 'uncertain_significance', 'likely_benign', 'benign', 'no_annotation']
+    colors = ['firebrick', 'salmon', 'paleyellow', 'lightblue', 'skyblue', 'gray60']
+
+    return (pd.read_csv(path, **file_format)
+            .rename(columns={'Protein Consequence': 'residue', 'VEP Annotation': 'type', 'ClinVar Clinical Significance': 'label'})
+            .loc[lambda x: x.type == 'missense_variant']
+            .drop(columns='type')
+            .assign(residue=lambda x: x.residue.str.extract(r'(\d+)'),
+                    label=lambda x: x.label
+                                     .str.lower()
+                                     .str.replace(' ','_')
+                                     .fillna('no_annotation')
+                                     .astype('category'),
+                    color=lambda x: x.label.map(dict(zip(labels, colors))),
+                    sort=lambda x: x.label.map(dict(zip(labels, range(len(labels)))))
+                    )
+        ) # TODO: remove duplicates and keep only highest annotation category
+
 
 def import_custom(path):
     """Generates a pymol coloring script from a csv table of custom annotations and colors"""
     file_format = {'usecols': ['residue', 'label', 'color']}
 
     return pd.read_csv(path, **file_format)
+
+
+def bin_residues(data):
+    '''Groups residues with the same label into a single string joined
+    by the '+' character. Returns a tuple of (label, color, residue #s)
+    '''
+    print(data)
+    return (data
+            .astype(str)
+            .groupby(['label','color']).residue.apply('+'.join)
+            .reset_index()
+            .to_records(index=False)
+            )
 
 
 def make_script(path, import_data):
@@ -51,18 +85,6 @@ def make_script(path, import_data):
         f.write('show surface\n')
         f.write('set transparency, 0.2\n')
         f.write('bg_color white')
-
-
-def bin_residues(data):
-    '''Groups residues with the same label into a single string joined
-    by the '+' character. Returns a tuple of (label, color, residue #s)
-    '''
-    return (data
-            .astype(str)
-            .groupby(['label','color']).residue.apply('+'.join)
-            .reset_index()
-            .to_records(index=False)
-            )
             
 
 def main(args):
@@ -75,7 +97,8 @@ if __name__ == '__main__':
     FUNCTION_MAP = {
         'moda': import_moda,
         'consurf': import_consurf,
-        'custom': import_custom
+        'gnomad': import_gnomad,
+        'custom': import_custom,
     }
 
     parser = argparse.ArgumentParser(
