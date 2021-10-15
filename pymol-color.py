@@ -31,7 +31,7 @@ def import_consurf(path):
                     color=lambda x: x.label.map(dict(zip(labels, colors)))))
 
 def import_gnomad(path):
-    '''Generates a pymol coloring script from a gnomAD variant table'''
+    """Generates a pymol coloring script from a gnomAD variant table"""
     file_format = {'usecols': ['Protein Consequence', 'VEP Annotation', 'ClinVar Clinical Significance']}
 
     labels = ['pathogenic', 'likely_pathogenic', 'uncertain_significance', 'likely_benign', 'benign', 'no_annotation']
@@ -42,15 +42,15 @@ def import_gnomad(path):
             .loc[lambda x: x.type == 'missense_variant']
             .drop(columns='type')
             .assign(residue=lambda x: x.residue.str.extract(r'(\d+)'),
-                    label=lambda x: x.label
-                                     .str.lower()
-                                     .str.replace(' ','_')
+                    label=lambda x: x.label.str.lower().str.replace(' ','_')
+                                     .str.replace('benign/','').str.replace('pathogenic/','')
                                      .fillna('no_annotation')
-                                     .astype('category'),
-                    color=lambda x: x.label.map(dict(zip(labels, colors))),
-                    sort=lambda x: x.label.map(dict(zip(labels, range(len(labels)))))
-                    )
-        ) # TODO: remove duplicates and keep only highest annotation category
+                                     .astype('category')
+                                     .cat.set_categories(labels, ordered=True),
+                    color=lambda x: x.label.map(dict(zip(labels, colors))))
+            .sort_values(by='label')
+            .drop_duplicates(subset='residue')
+        )
 
 
 def import_custom(path):
@@ -61,10 +61,9 @@ def import_custom(path):
 
 
 def bin_residues(data):
-    '''Groups residues with the same label into a single string joined
+    """Groups residues with the same label into a single string joined
     by the '+' character. Returns a tuple of (label, color, residue #s)
-    '''
-    print(data)
+    """
     return (data
             .astype(str)
             .groupby(['label','color']).residue.apply('+'.join)
