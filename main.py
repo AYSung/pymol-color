@@ -48,7 +48,7 @@ def import_gnomad(path):
                                      .fillna('no_annotation')
                                      .astype('category')
                                      .cat.set_categories(labels, ordered=True),
-                    color=lambda x: x.label.map(dict(zip(labels, colors))))
+                    color=lambda x: x.label.map(dict(zip(labels, colors))).astype('category'))
             .sort_values(by='label')
             .drop_duplicates(subset='residue')
         )
@@ -66,11 +66,10 @@ def bin_residues(data):
     """
     return (data
             .astype({'residue':str})
-            .groupby(['label','color']).residue.apply('+'.join)
-            .dropna()
-            .reset_index()
-            .sort_values(by='label')
-            .to_records(index=False)
+            .groupby(['label','color'], observed=True, sort=False).agg('+'.join)
+            .sort_index(level='label')
+            .pipe(lambda x: print(x) or x)
+            .to_records()
             )
   
 def make_script(path, import_data):
