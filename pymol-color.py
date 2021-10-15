@@ -52,7 +52,6 @@ def import_gnomad(path):
             .drop_duplicates(subset='residue')
         )
 
-
 def import_custom(path):
     """Generates a pymol coloring script from a csv table of custom annotations and colors"""
     file_format = {'usecols': ['residue', 'label', 'color']}
@@ -70,8 +69,7 @@ def bin_residues(data):
             .reset_index()
             .to_records(index=False)
             )
-
-
+  
 def make_script(path, import_data):
     groupings = (import_data(path).pipe(bin_residues))
     output_path = path.with_name(f'{path.stem}-coloring-script.pml')
