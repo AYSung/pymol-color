@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 
+
 def import_moda(path):
     """Generates a pymol coloring script from a csv table of MODA scores"""
     file_format = {'usecols': ['num','plainMODA']}
@@ -43,11 +44,11 @@ def import_gnomad(path):
             .drop(columns='type')
             .assign(residue=lambda x: x.residue.str.extract(r'(\d+)'),
                     label=lambda x: x.label.str.lower().str.replace(' ','_')
-                                     .str.replace('benign/','').str.replace('pathogenic/','')
+                                     .str.replace(r'\w+/','', regex=True)
                                      .fillna('no_annotation')
                                      .astype('category')
                                      .cat.set_categories(labels, ordered=True),
-                    color=lambda x: x.label.map(dict(zip(labels, colors))))
+                    color=lambda x: x.label.map(dict(zip(labels, colors))).astype('category'))
             .sort_values(by='label')
             .drop_duplicates(subset='residue')
         )
@@ -64,10 +65,11 @@ def bin_residues(data):
     by the '+' character. Returns a tuple of (label, color, residue #s)
     """
     return (data
-            .astype(str)
-            .groupby(['label','color']).residue.apply('+'.join)
-            .reset_index()
-            .to_records(index=False)
+            .astype({'residue':str})
+            .groupby(['label','color'], observed=True, sort=False).agg('+'.join)
+            .sort_index(level='label')
+            .pipe(lambda x: print(x) or x)
+            .to_records()
             )
   
 def make_script(path, import_data):
