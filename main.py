@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
+import os
 import pandas as pd
 import numpy as np
-
 
 def import_moda(path):
     """Generates a pymol coloring script from a csv table of MODA scores"""
@@ -73,8 +73,11 @@ def bin_residues(data):
 def make_script(path, import_data):
     groupings = (import_data(path).pipe(bin_residues))
     output_path = path.with_name(f'{path.stem}-coloring-script.pml')
+    output_directory = path.parent/'results'
+    if not output_directory.exists():
+        os.mkdir(output_directory)
 
-    with open(output_path, 'w') as f:
+    with open(output_directory/output_path, 'w') as f:
         f.write('color gray80\n')
         for label, color, residues in groupings:
             f.write(f'select {label}, resi {residues}\n')
