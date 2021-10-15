@@ -32,7 +32,11 @@ def import_consurf(path):
                     color=lambda x: x.label.map(dict(zip(labels, colors)))))
 
 def import_gnomad(path):
-    """Generates a pymol coloring script from a gnomAD variant table"""
+    """Generates a pymol coloring script from a gnomAD variant table.
+    Residues with multiple types of annotations will be colored based
+    on the most severe annotation (pathogenic > likely_pathogenic > 
+    uncertain_significance > likely_benign > benign > no annotation)
+    """
     file_format = {'usecols': ['Protein Consequence', 'VEP Annotation', 'ClinVar Clinical Significance']}
 
     labels = ['pathogenic', 'likely_pathogenic', 'uncertain_significance', 'likely_benign', 'benign', 'no_annotation']
