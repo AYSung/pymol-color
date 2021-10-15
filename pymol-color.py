@@ -4,87 +4,99 @@ import pandas as pd
 import numpy as np
 
 
-def make_into_pml_script(func):
-    """Wraps a function that imports data into a Pandas Series with the residue
-    number as the index and a corresponding categorical label and makes a PyMol
-    coloring script out of the labels, residues, and colors.
-    """
-    def bin_residues(data, labels):
-        """Return list of residues in each category joined with '+'"""
-        def get_residues(data, label):
-            residues = data[data.values == label].index.astype(str).tolist()
-            return '+'.join(residues)
-        return [get_residues(data, label) for label in labels]
-
-    def make_commands(groupings):
-        """Generate string of pymol commands from tuple of labels, residues, and colors"""
-        commands = 'gray80\n'
-        for label, residues, color in groupings:
-            commands += f'select {label}, resi {residues}\n'
-            commands += f'color {color}, {label}\n'
-        commands += 'show surface\n'
-        commands += 'set transparency, 0.2\n'
-        commands += 'bg_color white\n'
-        return commands
-    
-    def wrapper(file_path):
-        data, labels, colors = func(file_path)
-        residues = bin_residues(data, labels)
-        pymol_commands = make_commands(zip(labels, residues, colors))
-
-        script_path = file_path.with_name(f'{file_path.stem}-coloring-script.pml')
-        with open(script_path, 'w') as f:
-            f.write(pymol_commands)
-    return wrapper
-
-
-@make_into_pml_script
-def moda(file_path):
+def import_moda(path):
     """Generates a pymol coloring script from a csv table of MODA scores"""
+    file_format = {'usecols': ['num','plainMODA']}
+    
     labels = ['low', 'medium', 'high', 'very_high']
     colors = ['gray80', 'yelloworange', 'tv_orange', 'firebrick']
 
-    data = pd.read_csv(
-        file_path,
-        usecols=['num', 'plainMODA'],
-        index_col=['num']
-    )
-    medium, high, very_high = (50, 100, 1000)
-    bins = pd.IntervalIndex.from_tuples([
-        (0, medium),
-        (medium, high),
-        (high, very_high),
-        (very_high, np.inf)
-    ])
-    data = pd.cut(data['plainMODA'], bins).map(dict(zip(bins, labels)))
-    return data, labels, colors
+    bins = [0, 50, 100, 1000, np.inf]
+    return (pd.read_csv(path, **file_format)
+            .rename(columns={'num': 'residue', 'plainMODA': 'label'})
+            .assign(label=lambda x: pd.cut(x.label, bins=bins, labels=labels, include_lowest=True),
+                    color=lambda x: x.label.map(dict(zip(labels, colors)))))
 
-
-@make_into_pml_script
-def consurf(file_path):
+def import_consurf(path):
     """Generates a pymol coloring script from a csv table of ConSurf scores"""
+    file_format = {'skiprows': 4, 'usecols': ['pos', 'ConSurf Grade']}
+
     labels = [str(i) for i in range(1, 10)]
     colors = ['teal', 'cyan', 'aquamarine', 'palecyan',
               'white', 'lightpink', 'pink', 'deepsalmon', 'raspberry']
 
-    data = pd.read_csv(
-        file_path,
-        skiprows=4,
-        usecols=['pos', 'ConSurf Grade'],
-        index_col=['pos'],
-    )
-    data['ConSurf Grade'] = data['ConSurf Grade'].str.replace('*', '', regex=False)
-    return data, labels, colors
+    return (pd.read_csv(path, **file_format)
+            .rename(columns={'pos':'residue', 'ConSurf Grade': 'label'})
+            .assign(label=lambda x: x.label.str.replace('*', '', regex=False),
+                    color=lambda x: x.label.map(dict(zip(labels, colors)))))
 
+def import_gnomad(path):
+    """Generates a pymol coloring script from a gnomAD variant table"""
+    file_format = {'usecols': ['Protein Consequence', 'VEP Annotation', 'ClinVar Clinical Significance']}
+
+    labels = ['pathogenic', 'likely_pathogenic', 'uncertain_significance', 'likely_benign', 'benign', 'no_annotation']
+    colors = ['firebrick', 'salmon', 'paleyellow', 'lightblue', 'skyblue', 'gray60']
+
+    return (pd.read_csv(path, **file_format)
+            .rename(columns={'Protein Consequence': 'residue', 'VEP Annotation': 'type', 'ClinVar Clinical Significance': 'label'})
+            .loc[lambda x: x.type == 'missense_variant']
+            .drop(columns='type')
+            .assign(residue=lambda x: x.residue.str.extract(r'(\d+)'),
+                    label=lambda x: x.label.str.lower().str.replace(' ','_')
+                                     .str.replace('benign/','').str.replace('pathogenic/','')
+                                     .fillna('no_annotation')
+                                     .astype('category')
+                                     .cat.set_categories(labels, ordered=True),
+                    color=lambda x: x.label.map(dict(zip(labels, colors))))
+            .sort_values(by='label')
+            .drop_duplicates(subset='residue')
+        )
+
+def import_custom(path):
+    """Generates a pymol coloring script from a csv table of custom annotations and colors"""
+    file_format = {'usecols': ['residue', 'label', 'color']}
+
+    return pd.read_csv(path, **file_format)
+
+
+def bin_residues(data):
+    """Groups residues with the same label into a single string joined
+    by the '+' character. Returns a tuple of (label, color, residue #s)
+    """
+    return (data
+            .astype(str)
+            .groupby(['label','color']).residue.apply('+'.join)
+            .reset_index()
+            .to_records(index=False)
+            )
+  
+def make_script(path, import_data):
+    groupings = (import_data(path).pipe(bin_residues))
+    output_path = path.with_name(f'{path.stem}-coloring-script.pml')
+
+    with open(output_path, 'w') as f:
+        f.write('color gray80\n')
+        for label, color, residues in groupings:
+            f.write(f'select {label}, resi {residues}\n')
+            f.write(f'color {color}, {label}\n')
+        f.write('show surface\n')
+        f.write('set transparency, 0.2\n')
+        f.write('bg_color white')
+            
 
 def main(args):
-    make_script = eval(args.mode)
-    for file_path in args.csv:
-        make_script(file_path)
+    import_data = FUNCTION_MAP[args.mode]
+    for path in args.csv:
+        make_script(path, import_data)
 
 
 if __name__ == '__main__':
-    MODES = ['moda','consurf',]
+    FUNCTION_MAP = {
+        'moda': import_moda,
+        'consurf': import_consurf,
+        'gnomad': import_gnomad,
+        'custom': import_custom,
+    }
 
     parser = argparse.ArgumentParser(
         prog='PyMol color',
@@ -93,7 +105,7 @@ if __name__ == '__main__':
         'mode',
         metavar='mode',
         type=str,
-        choices=MODES,
+        choices=FUNCTION_MAP.keys(),
         help='type of analysis (e.g. moda, consurf)',
     )
     parser.add_argument(
