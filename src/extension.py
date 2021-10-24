@@ -1,9 +1,10 @@
-import argparse
 from pathlib import Path
-import os
-from typing import Tuple
-import pandas as pd
+from typing import Optional, Tuple
+
 import numpy as np
+import pandas as pd
+from pymol import cmd
+
 
 
 def import_moda(path: Path) -> pd.DataFrame:
@@ -80,61 +81,38 @@ def bin_residues(data: pd.DataFrame) -> Tuple[str, str, str]:
             .pipe(lambda x: print(x) or x)
             .to_records()
             )
-  
-def make_script(path: Path, import_data: function) -> None:
-    groupings = (import_data(path).pipe(bin_residues))
-    output_path = path.with_name(f'{path.stem}-coloring-script.pml')
-    output_directory = path.parent/'results'
-    if not output_directory.exists():
-        os.mkdir(output_directory)
 
-    # Change Parameters
-    default_color = 'gray80'
-    surface_transparency = 0.2
-    #
+@cmd.extend
+def color_by_score(mode: str, data_path: Path, 
+    object: Optional[str] = '', 
+    segment: Optional[str] = '', 
+    chain: Optional[str] = '', 
+    default_color: Optional[str] = 'gray80', 
+    bg_color: Optional[str] = 'black', 
+    surface: Optional[bool] = False, 
+    surface_transparency: Optional[float] = 0.2):
     
-    # TODO: add support for specifying chain letter
+    if not mode in FUNCTION_MAP:
+        raise ValueError(f'mode must be one of {FUNCTION_MAP.keys()}')
+    
+    import_func = FUNCTION_MAP[mode]
+    groupings = (import_func(data_path).pipe(bin_residues))
+    
+    selection = f'/{object}/{segment}/{chain}/'
 
-    with open(output_directory/output_path, 'w') as f:
-        f.write(f'color {default_color}\n')
-        for label, color, residues in groupings:
-            f.write(f'select {label}, resi {residues}\n')
-            f.write(f'color {color}, {label}\n')
-        f.write('show surface\n')
-        f.write(f'set transparency, {surface_transparency:.1f}\n')
-        f.write('bg_color white')
-            
+    cmd.color(default_color)
+    for label, color, residues in groupings:
+        cmd.select(label, selection=f'{selection} and resi {residues}')
+        cmd.color(color, f'({label})')
+    if surface:
+        cmd.show('surface')
+        cmd.set('transparency', value=surface_transparency)
+        cmd.bg_color(color=bg_color)
+    cmd.deselect()
 
-def main(args):
-    import_func = FUNCTION_MAP[args.mode]
-    for path in args.csv:
-        make_script(path, import_func)
-
-
-if __name__ == '__main__':
-    FUNCTION_MAP = {
-        'moda': import_moda,
-        'consurf': import_consurf,
-        'gnomad': import_gnomad,
-        'custom': import_custom,
-    }
-
-    parser = argparse.ArgumentParser(
-        prog='PyMol color',
-        description='Generate pymol coloring script based on csv score tables')
-    parser.add_argument(
-        'mode',
-        metavar='mode',
-        type=str,
-        choices=FUNCTION_MAP.keys(),
-        help='type of analysis (e.g. moda, consurf)',
-    )
-    parser.add_argument(
-        'csv',
-        metavar='csv',
-        nargs='+',
-        type=Path,
-        help='csv file with residue scores',
-    )
-    args = parser.parse_args()
-    main(args)
+FUNCTION_MAP = {
+    'moda': import_moda,
+    'consurf': import_consurf,
+    'gnomad': import_gnomad,
+    'custom': import_custom,
+}
