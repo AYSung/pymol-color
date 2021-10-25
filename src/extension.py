@@ -6,7 +6,6 @@ import pandas as pd
 from pymol import cmd
 
 
-
 def import_moda(path: Path) -> pd.DataFrame:
     """Generates a pymol coloring script from a csv table of MODA scores"""
     file_format = {'usecols': ['num','plainMODA']}
