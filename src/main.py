@@ -1,14 +1,17 @@
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import Callable
+
+import pandas as pd
 
 from src.extension import FUNCTION_MAP, bin_residues
 from src.utils import create_parser
 
-  
-def make_script(path: Path, import_data: function) -> None:
-    groupings = (import_data(path).pipe(bin_residues))
+
+def make_script(path: Path, import_data: Callable([Path], pd.DataFrame)) -> None:
+    groupings = import_data(path).pipe(bin_residues)
     output_path = path.with_name(f'{path.stem}-coloring-script.pml')
-    output_directory = path.parent/'results'
+    output_directory = path.parent / 'results'
     if not output_directory.exists():
         os.mkdir(output_directory)
 
@@ -16,10 +19,10 @@ def make_script(path: Path, import_data: function) -> None:
     default_color = 'gray80'
     surface_transparency = 0.2
     #
-    
+
     # TODO: add support for specifying chain letter
 
-    with open(output_directory/output_path, 'w') as f:
+    with open(output_directory / output_path, 'w') as f:
         f.write(f'color {default_color}\n')
         for label, color, residues in groupings:
             f.write(f'select {label}, resi {residues}\n')
