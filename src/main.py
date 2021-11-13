@@ -4,11 +4,11 @@ from typing import Callable
 
 import pandas as pd
 
-from src.extension import FUNCTION_MAP, bin_residues
-from src.utils import create_parser
+from extension import FUNCTION_MAP, bin_residues
+from utils import create_parser
 
 
-def make_script(path: Path, import_data: Callable([Path], pd.DataFrame)) -> None:
+def make_script(path: Path, import_data: Callable[[Path], pd.DataFrame]) -> None:
     groupings = import_data(path).pipe(bin_residues)
     output_path = path.with_name(f'{path.stem}-coloring-script.pml')
     output_directory = path.parent / 'results'
