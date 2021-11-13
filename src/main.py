@@ -9,6 +9,7 @@ from utils import create_parser
 
 
 def make_script(path: Path, import_data: Callable[[Path], pd.DataFrame]) -> None:
+
     groupings = import_data(path).pipe(bin_residues)
     output_path = path.with_name(f'{path.stem}-coloring-script.pml')
     output_directory = path.parent / 'results'
