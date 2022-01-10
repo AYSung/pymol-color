@@ -46,6 +46,7 @@ def import_consurf(path: Path) -> pd.DataFrame:
     return (
         pd.read_csv(path, **file_format)
         .rename(columns={'pos': 'residue', 'ConSurf Grade': 'label'})
+        .astype({'residue': int, 'label': str})
         .assign(
             label=lambda x: x.label.str.replace('*', '', regex=False),
             color=lambda x: x.label.map(dict(zip(labels, colors))),
